@@ -1,0 +1,249 @@
+---
+title: "Exam 2_Joel Rojas"
+author: "Joel Rojas"
+date: "2023-11-16"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r, echo = TRUE}
+load("acs2021_recoded.RData")
+
+```
+1. (10 points) I've used a subset of the data (so you cannot replicate, just use the information provided). From this information, form a hypothesis test about whether men and women are equally likely to live in the same state that they were born. Carefully explain the null and alternate hypotheses, the test statistic, and p-value. Please form a confidence interval. Explain what you would conclude from this test.
+
+```{r eval=FALSE}
+summary(live_same_state_born[as.logical(female)])-Female
+   Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
+ 0.0000  0.0000  1.0000  0.5557  1.0000  1.0000 
+> summary(live_same_state_born[!as.logical(female)])-Male
+   Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
+ 0.0000  0.0000  1.0000  0.5384  1.0000  1.0000 
+> summary(as.logical(female))
+   Mode   FALSE    TRUE 
+logical   50579   45087
+
+```
+```{r, echo = TRUE}
+#Null Hypothesis: Gender plays no role in differentiating the likelihood that someone would live in the same state that they were born.
+
+#Alternative Hypothesis: Gender does play a role in differentiation the likelihood that someone would live in the same state that they were born.
+
+
+# Summary Stats
+p_female <- 0.5557
+p_male <- 0.5384
+n_female <- 45087
+n_male <- 50579
+
+p_pooled <- (p_female * n_female + p_male * n_male) / (n_female + n_male)
+
+se <- sqrt(p_pooled * (1 - p_pooled) * (1/n_female + 1/n_male))
+se
+
+z_score <- (p_female - p_male) / se
+z_score
+
+p_value <- 2 * (1 - pnorm(abs(z_score)))
+p_value
+z_critical <- qnorm(0.975)
+
+margin_of_error <- z_critical * sqrt((p_female * (1 - p_female) / n_female) + (p_male * (1 - p_male) / n_male))
+margin_of_error
+ci_lower <- (p_female - p_male) - margin_of_error
+ci_lower
+ci_upper <- (p_female - p_male) + margin_of_error
+ci_upper
+
+```
+Reject the null hypothesis, gender does play a role in the likelihood that someone would live in the same state taht they were born
+
+2. (10 points) Create a subgroup of the sample, that makes sense as you focus on the decision of whether to move away. Perhaps look at a certain age range or education or occupation or degree field. Explain your rationale.
+```{r, echo = TRUE}
+library(dplyr)
+load("acs2021_recoded.RData")
+subgroup_sample <- acs2021 %>%
+  filter(AGE >= 21, AGE <= 45, unmarried == 0, Commute_subway == 0, EDUC == "Grade 12" )
+
+head(subgroup_sample)
+ 
+
+
+```
+Rationale for Subgroup Selection: The chosen age range typically represents adults most likely to be willing to relocate or move, making them a relevant demographic for studying moving decisions. Including only those that are not married, commute by subway and a grade 12 education make this a good demographic to want to move away.
+
+
+
+
+
+3. (25 points) Please form 2 sets of OLS regressions. One set splits the sample into men and women, the other set uses interaction terms. The dependent variable is `live_same_state_born` and for this exercise, keep the independent variables to be just gender and a sensible selection of education dummies. Show the results of each set of regressions and explain how the estimated coefficients deliver the same information. Just as we did in Lab 8.
+```{r, echo = TRUE}
+
+#Model1- Interaction Terms
+dat_use <- acs2021 %>%
+  filter(AGE >= 21, AGE <= 45, unmarried == 0, Commute_subway == 0,)
+
+
+ols_out1 <- lm(live_same_state_born ~ SEX +  educ_hs + educ_somecoll + educ_college + educ_advdeg + AGE, data = dat_use)
+
+summary(ols_out1)
+
+#Model2- Split into men and women
+
+dat_use_female <- acs2021 %>%
+  filter(AGE >= 21, AGE <= 45, unmarried == 0, Commute_subway == 0, SEX == 1)
+
+dat_use_male <- acs2021 %>%
+  filter(AGE >= 21, AGE <= 45, unmarried == 0, Commute_subway == 0, SEX == 0)
+
+ols_out_female <- lm(live_same_state_born ~ SEX +  educ_hs + educ_somecoll + educ_college + educ_advdeg + AGE, data = dat_use)
+
+summary(ols_out_female)
+
+
+ols_out_male <- lm(live_same_state_born ~ SEX +  educ_hs + educ_somecoll + educ_college + educ_advdeg + AGE, data = dat_use)
+
+summary(ols_out_male)
+```
+4. (25 points) Estimate a better OLS model for whether they live in the same state as born, within your subsample. You should include more than just gender and education now.
+  a. Explain what variables you choose to use as predictors. Do they seem exogenous? Consider whether polynomials in Age are important or interactions with dummy variables.
+  b. Do your estimates seem plausible? Are the estimates each statistically significant?
+  c. Construct a joint test of whether a reasonable set of coefficients (such as age polynomials, or education dummies) are all zero.
+  d. What are the predicted probabilities for a few particular groups?
+  e. How many Type I and Type II errors are made by the model?
+  
+```{r, echo = TRUE}
+#4a
+subgroup <- dat_use
+model_ols <- lm(live_same_state_born ~ AGE + I(AGE^2) + SEX +  educ_hs + educ_somecoll + educ_college + educ_advdeg + LABFORCE , data = subgroup)
+summary(model_ols)
+head(subgroup)
+#4c
+anova(model_ols)
+
+#4d
+# Example prediction for a 30-year-old female with some college education
+group1 <- subgroup %>%
+  filter(AGE == 30, SEX == "Female", educ_somecoll == 1)
+head(group1)
+
+# Example prediction for a 40-year-old male with a highschool education
+group2 <- subgroup %>%
+  filter(AGE == 40, SEX == "Male", educ_hs == 1)
+ head(group2)
+
+ #Predcitions for each group
+predictions_group1 <- predict(model_ols, newdata = group1)
+predictions_group2 <- predict(model_ols, newdata = group2)
+
+# Output the predictions
+print(predictions_group1)
+print(predictions_group2)
+
+#4e
+summary(model_ols)
+
+
+```
+  
+5. (25 points) Estimate a simple logit model, for the outcome variable `live_same_state_born`, within your subsample.
+  a. Explain what variables you choose to use as predictors. Do they seem exogenous? Consider whether polynomials in Age are important or interactions with dummy variables.
+  b. Do your estimates seem plausible? Are the estimates each statistically significant?
+  c. Construct a joint test of whether a reasonable set of coefficients (such as age polynomials, or education dummies) are all zero.
+  d. What are the predicted probabilities for a few particular groups?
+  e. How many Type I and Type II errors are made by the model?
+  f. How does this logit compare with the OLS previous?
+
+```{r, echo = TRUE}
+#5a
+
+logit_model <- glm(live_same_state_born~ AGE + SEX +  educ_hs + educ_somecoll + educ_college + educ_advdeg + LABFORCE, family = binomial, data = subgroup)
+
+summary(logit_model)
+#5c.
+anova(logit_model, test = "Chisq")
+
+#5d.
+# Example prediction for a 30-year-old female with some college education
+group1b <- subgroup %>%
+  filter(AGE == 30, SEX == "Female", educ_somecoll == 1)
+head(group1)
+
+# Example prediction for a 40-year-old male with a highschool education
+group2b <- subgroup %>%
+  filter(AGE == 40, SEX == "Male", educ_hs == 1)
+ head(group2)
+
+
+# Predicting probabilities
+predicted_probabilities1 <- predict(logit_model, newdata = group1b, type = "response")
+print(predicted_probabilities1)
+
+predicted_probabilities2 <- predict(logit_model, newdata = group2b, type = "response")
+print(predicted_probabilities2)
+
+#5e.
+predicted_values <- ifelse(predict(logit_model, type = "response") > 0.5, 1, 0)
+
+confusion_matrix <- table(Predicted = predicted_values, Actual = subgroup$live_same_state_born)
+confusion_matrix
+
+
+```
+  
+6. (25 points) Estimate one or more additional models with other methods (not OLS or logit) to predict if the person lives in the same state as they were born. Explain as in previous. Compare the different models and make judgments about strengths and weaknesses of each.
+```{r, echo = TRUE}
+#Factors 
+subgroup$SEX <- as.factor(subgroup$SEX)
+subgroup$educ_hs <- as.factor(subgroup$educ_hs)
+
+#Cleaning
+subgroup_clean <- na.omit(subgroup)
+
+#Training and Test Split
+set.seed(654321)
+NN <- length(subgroup_clean$live_same_state_born)
+
+restrict_1 <- (runif(NN) < 0.005)
+summary(restrict_1)
+dat_train <- subset(subgroup_clean, restrict_1)
+dat_test <- subset(subgroup_clean, !restrict_1)
+
+
+library(randomForest)
+
+
+head(dat_train)
+
+#random Forest model
+rf_model <- randomForest(live_same_state_born ~ AGE + SEX + EDUC + LABFORCE, 
+                         data = dat_train, importance = TRUE, proximity = TRUE, ntree = 500)
+
+
+summary(rf_model)
+
+print(rf_model)
+round(importance(rf_model),2)
+varImpPlot(rf_model)
+
+# Predictions
+library(caret)
+predictions <- predict(rf_model, newdata = dat_test)
+table(pred = predictions, true = dat_test$live_same_state_born)
+
+
+# Importance
+importance <- importance(rf_model)
+print(importance)
+
+
+```
+
+  
+  
+  
+  
+  
